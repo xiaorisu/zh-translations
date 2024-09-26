@@ -2,16 +2,31 @@
 
 这是 IETF-QUIC-Working-Group 相关文档的翻译所使用的仓库。
 
-翻译将会基于 IETF-QUIC-draft version 18 的文档并在翻译完成后尽可能的跟进新的版本。
+翻译将基于最新的 IETF-QUIC-draft 版本, 并跟进将在近期推出的 RFC 完成。
 
-## 在线预览
-点击以下链接在线预览。
+翻译提供当前正在翻译的部分预览，同时提供此前完成的 version 18 的完整翻译内容。
 
-[QUIC传输协议 draft-ietf-quic-transport-zh](http://docs.wxclimb.top/draft-ietf-quic-transport-zh.html)
+## 完整旧版本在线预览
+点击以下链接在线预览V18版本翻译。
 
-[QUIC-HTTP语义映射 draft-ietf-quic-http-zh](http://docs.wxclimb.top/draft-ietf-quic-http-zh.html)
+[QUIC 传输协议 draft-ietf-quic-transport-zh](http://docs.wxclimb.top/draft-ietf-quic-transport-zh.html)
 
-[QUIC-QPACK封装 draft-ietf-quic-qpack-zh](http://docs.wxclimb.top/draft-ietf-quic-qpack-zh.html)
+[QUIC-HTTP 语义映射 draft-ietf-quic-http-zh](http://docs.wxclimb.top/draft-ietf-quic-http-zh.html)
+
+[QUIC-QPACK 封装 draft-ietf-quic-qpack-zh](http://docs.wxclimb.top/draft-ietf-quic-qpack-zh.html)
+
+[QUIC-TLS 加密 draft-ietf-quic-tls-zh](http://docs.wxclimb.top/draft-ietf-quic-tls-zh.html)
+
+[QUIC-Recovery 丢失恢复 draft-ietf-quic-recovery-zh](http://docs.wxclimb.top/draft-ietf-quic-recovery-zh.html)
+
+[QUIC-spin-exp 自旋实践 draft-ietf-quic-spin-exp-zh](http://docs.wxclimb.top/draft-ietf-quic-spin-exp-zh.html)
+
+[QUIC-invariants 不变量 draft-ietf-quic-invariants-zh](http://docs.wxclimb.top/draft-ietf-quic-invariants-zh.html)
+
+## 翻译中最新版本在线预览
+点击以下链接在线预览翻译中最新版本翻译。
+
+[QUIC 传输协议 draft-ietf-quic-transport](http://doc.wxclimb.top/draft-ietf-quic-transport.html)
 
 ## 翻译格式与翻译相关
 
@@ -43,7 +58,7 @@ ruby-install ruby
 gem install kramdown-rfc2629
 ```
 ### OSX依赖安装
-请参考[这里](https://github.com/martinthomson/i-d-template/blob/master/doc/SETUP.md)  
+请参考[这里](https://github.com/martinthomson/i-d-template/blob/master/doc/SETUP.md)
 基本上与Linux一致
 
 ### 文档构建
@@ -51,6 +66,7 @@ gem install kramdown-rfc2629
 
 ```
 make
+make unescape
 ```
 
 ## 欢迎新的贡献者
@@ -60,7 +76,7 @@ make
 
 ## 参与人员
 
-由志愿者无私的贡献出自己的业余时间进行翻译，感谢以下人员的贡献（排名不分先后）  
+由志愿者无私的贡献出自己的业余时间进行翻译，感谢以下人员的贡献（排名不分先后）
 
 * atticuswu ([wuxiao0129@gmail.com][atticuswu])
 * holimu ([1398620653@qq.com][holimu])

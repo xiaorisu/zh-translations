@@ -84,177 +84,137 @@ code and issues list for this draft can be found at
 --- middle
 
 
-# Introduction
+# 介绍(Introduction)
 
-HTTP semantics are used for a broad range of services on the Internet. These
-semantics have commonly been used with two different TCP mappings, HTTP/1.1 and
-HTTP/2.  HTTP/2 introduced a framing and multiplexing layer to improve latency
-without modifying the transport layer.  However, TCP's lack of visibility into
-parallel requests in both mappings limited the possible performance gains.
+HTTP语义用于Internet上的广泛服务。这些语义通常用于两个不同的TCP映射
+HTTP/1.1和HTTP/2。HTTP/2引入了一个分帧和多路复用层，在不修改传输层
+的情况下改善了延迟。然而，TCP在两个映射中都无法看到并行请求，这限制
+了可能的性能提升。
 
-The QUIC transport protocol incorporates stream multiplexing and per-stream flow
-control, similar to that provided by the HTTP/2 framing layer. By providing
-reliability at the stream level and congestion control across the entire
-connection, it has the capability to improve the performance of HTTP compared to
-a TCP mapping.  QUIC also incorporates TLS 1.3 at the transport layer, offering
-comparable security to running TLS over TCP, but with improved connection setup
-latency (unless TCP Fast Open {{?RFC7413}}} is used).
+QUIC传输协议结合了流复用和流独立的流量控制，与HTTP/2帧层提供的类似。通过
+在流级别提供可靠性和跨整个连接的拥塞控制，与TCP映射相比，它能够提高
+HTTP的性能。QUIC还在传输层集成了TLS 1.3，提供了与在TCP上运行TLS相当
+的安全性，但具有改善的连接设置延迟（除非使用TCP快速打开{{?RFC7413}}}）。
 
-This document defines a mapping of HTTP semantics over the QUIC transport
-protocol, drawing heavily on the design of HTTP/2. This document identifies
-HTTP/2 features that are subsumed by QUIC, and describes how the other features
-can be implemented atop QUIC.
+本文档定义了HTTP语义在QUIC传输协议上的映射，大量借鉴了HTTP/2的设计。
+本文档确定了QUIC所包含的HTTP/2特性，并描述了如何在QUIC上实现其他特性。
 
-QUIC is described in {{QUIC-TRANSPORT}}.  For a full description of HTTP/2, see
-{{!RFC7540}}.
+QUIC在{{QUIC-TRANSPORT}}中描述。HTTP/2详细描，请参见{{!RFC7540}}。
 
 
-## Notational Conventions
+## 符号约定（Notational Conventions）
 
-The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
-"SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this
-document are to be interpreted as described in BCP 14 {{!RFC2119}} {{!RFC8174}}
-when, and only when, they appear in all capitals, as shown here.
+关键词 **"必须(MUST)”， "禁止(MUST NOT)"， "必需(REQUIRED)"，
+"应当(SHALL)"， "应当不(SHALL NOT)"， "应该(SHOULD)"，
+"不应该(SHOULD NOT)"， "推荐(RECOMMENDED)"，
+"不推荐(NOT RECOMMENDED)"， "可以(MAY)"， "可选(OPTIONAL)"**
+在这篇文档中将会如 BCP 14 {{!RFC2119}} {{!RFC8174}} 中描述的，
+当且仅当他们如此例子显示的以加粗的形式出现时。
 
-Field definitions are given in Augmented Backus-Naur Form (ABNF), as defined in
-{{!RFC5234}}.
+字段定义以扩展的巴科斯范式(ABNF)给出，如{{!RFC5234}}中所定义。
 
-This document uses the variable-length integer encoding from
-{{QUIC-TRANSPORT}}.
+此文档使用{{QUIC-TRANSPORT}}中的可变长度整数编码。
 
-Protocol elements called "frames" exist in both this document and
-{{QUIC-TRANSPORT}}. Where frames from {{QUIC-TRANSPORT}} are referenced, the
-frame name will be prefaced with "QUIC."  For example, "QUIC CONNECTION_CLOSE
-frames."  References without this preface refer to frames defined in {{frames}}.
+此文档和{{QUIC-TRANSPORT}}中都存在名为“frames”的协议元素。如果
+引用{{QUIC-TRANSPORT}}中的帧，则帧名称将以“QUIC”开头。例如，
+“QUIC CONNECTION_CLOSE frames”。没有此前言的引用将引用{{frames}}
+中定义的帧。
 
 
-# Connection Setup and Management
+# 连接设置和管理（Connection Setup and Management）
 
-## Draft Version Identification
+## 草稿版本标识（Draft Version Identification）
 
 > **RFC Editor's Note:**  Please remove this section prior to publication of a
 > final version of this document.
 
-HTTP/3 uses the token "h3" to identify itself in ALPN and Alt-Svc.  Only
-implementations of the final, published RFC can identify themselves as "h3".
-Until such an RFC exists, implementations MUST NOT identify themselves using
-this string.
+HTTP/3使用标记“h3”在ALPN和Alt-Svc中标识自身。只有最终发布的RFC的实现
+才能将自己标识为“h3”。在这样的RFC存在之前，实现**禁止**使用此字符串标识自己。
 
-Implementations of draft versions of the protocol MUST add the string "-" and
-the corresponding draft number to the identifier. For example,
-draft-ietf-quic-http-01 is identified using the string "h3-01".
+协议草案版本的实现**必须**将字符串“-”和相应的草案编号添加到标识符中。例如，
+draft-ietf-quic-http-01使用字符串“h3-01”标识。
 
-Non-compatible experiments that are based on these draft versions MUST append
-the string "-" and an experiment name to the identifier. For example, an
-experimental implementation based on draft-ietf-quic-http-09 which reserves an
-extra stream for unsolicited transmission of 1980s pop music might identify
-itself as "h3-09-rickroll". Note that any label MUST conform to the "token"
-syntax defined in Section 3.2.6 of [RFC7230]. Experimenters are encouraged to
-coordinate their experiments on the quic@ietf.org mailing list.
+基于这些草案版本的不兼容实验必须将字符串“-”和实验名称附加到标识符。例如，
+基于draft-ietf-quic-http-09的实验实现可以将其自身标识为“h3-09-rickroll”，
+该草案为1980年代流行音乐的主动传输保留额外的流。请注意，任何标签都**必须**
+符合[RFC7230]第3.2.6节中定义的“标记”语法。鼓励实验者在quic@ietf.org邮件
+列表上协调他们的实验。
 
-## Discovering an HTTP/3 Endpoint
+## 发现HTTP/3端点（Discovering an HTTP/3 Endpoint）
 
-An HTTP origin advertises the availability of an equivalent HTTP/3 endpoint via
-the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame
-({{!ALTSVC=RFC7838}}), using the ALPN token defined in
-{{connection-establishment}}.
+HTTP源使用{{connection-establishment}}中定义的ALPN令牌，通过Alt-Svc HTTP响应头字段或
+HTTP/2 ALTSVC帧({{!ALTSVC=RFC7838}})通告对等HTTP/3端点的可用性。
 
-For example, an origin could indicate in an HTTP response that HTTP/3 was
-available on UDP port 50781 at the same hostname by including the following
-header field:
+例如，源可以通过包括以下报头字段在HTTP响应中指示HTTP/3在同一主机名处的 UDP端口50781上可用：
 
-~~~ example
+~~~ 例子
 Alt-Svc: h3=":50781"
 ~~~
 
-On receipt of an Alt-Svc record indicating HTTP/3 support, a client MAY attempt
-to establish a QUIC connection to the indicated host and port and, if
-successful, send HTTP requests using the mapping described in this document.
+在接收到指示HTTP/3支持的Alt-Svc记录时，客户端可能会尝试建立与所指示的主机
+和端口的QUIC连接，如果成功，则使用本文档中描述的映射发送HTTP请求。
 
-Connectivity problems (e.g. firewall blocking UDP) can result in QUIC connection
-establishment failure, in which case the client SHOULD continue using the
-existing connection or try another alternative endpoint offered by the origin.
+连接问题(例如防火墙阻止UDP)可能会导致QUIC连接建立失败，在这种情况下，客户端**应该**
+继续使用现有连接或尝试来源提供的另一个替代端。
 
-Servers MAY serve HTTP/3 on any UDP port, since an alternative always includes
-an explicit port.
+服务器可以在任何UDP端口上提供HTTP/3服务，因为备选方案总是包括显式端口。
 
-### QUIC Version Hints {#alt-svc-version-hint}
+### QUIC版本提示（QUIC Version Hints） {#alt-svc-version-hint}
 
-This document defines the "quic" parameter for Alt-Svc, which MAY be used to
-provide version-negotiation hints to HTTP/3 clients. QUIC versions are four-byte
-sequences with no additional constraints on format. Leading zeros SHOULD be
-omitted for brevity.
+本文档定义了Alt-Svc的“quic”参数，该参数**可以**用于向HTTP/3客户端提供版本协商提示。
+QUIC版本是四个字节的序列，对格式没有额外的限制。为简洁起见，应省略前导零。
 
-Syntax:
+语法:
 
 ~~~ abnf
 quic = DQUOTE version-number [ "," version-number ] * DQUOTE
 version-number = 1*8HEXDIG; hex-encoded QUIC version
 ~~~
 
-Where multiple versions are listed, the order of the values reflects the
-server's preference (with the first value being the most preferred version).
-Reserved versions MAY be listed, but unreserved versions which are not supported
-by the alternative SHOULD NOT be present in the list. Origins MAY omit supported
-versions for any reason.
+在列出多个版本的情况下，值的顺序反映服务器的首选项(第一个值是最首选的版本)。
+**可以**列出保留版本，但替代方案不支持的未保留版本不应出现在列表中。出于某些原因，
+源**可能**会忽略支持的版本。
 
-Clients MUST ignore any included versions which they do not support.  The "quic"
-parameter MUST NOT occur more than once; clients SHOULD process only the first
-occurrence.
+客户端**必须**忽略其不支持的任何包含版本。“quic”参数**禁止**出现多次；客户端
+**应该**只处理第一次出现的情况。
 
-For example, suppose a server supported both version 0x00000001 and the version
-rendered in ASCII as "Q034".  If it also opted to include the reserved version
-(from Section 15 of {{QUIC-TRANSPORT}}) 0x1abadaba, it could specify the
-following header field:
+例如，假设服务器同时支持版本0x00000001和在ASCII中呈现为“Q034”的版本。如果它还
+选择包括保留版本(来自{{QUIC-TRANSPORT}}的第15节)0x1abadaba，它可以指定以下报头字段：
 
-~~~ example
+~~~ example例子
 Alt-Svc: h3=":49288";quic="1,1abadaba,51303334"
 ~~~
 
-A client acting on this header field would drop the reserved version (not
-supported), then attempt to connect to the alternative using the first version
-in the list which it does support, if any.
+对此报头字段进行操作的客户端将丢弃保留版本(不受支持)，然后尝试使用列表中它支持
+的第一个版本(如果有的话)连接到替代版本。
 
-## Connection Establishment {#connection-establishment}
+## 连接建立（Connection Establishment） {#connection-establishment}
 
-HTTP/3 relies on QUIC as the underlying transport.  The QUIC version being used
-MUST use TLS version 1.3 or greater as its handshake protocol.  HTTP/3 clients
-MUST indicate the target domain name during the TLS handshake. This may be done
-using the Server Name Indication (SNI) {{!RFC6066}} extension to TLS or using
-some other mechanism.
+HTTP/3依赖QUIC作为底层传输。所使用的QUIC版本必须使用TLS 1.3版或更高版本作为其
+握手协议。HTTP/3客户端必须在TLS握手期间指明目标域名。这可以使用TLS的服务器名称
+指示(SNI){{!RFC6066}}扩展或使用某些其他机制来完成。
 
-QUIC connections are established as described in {{QUIC-TRANSPORT}}. During
-connection establishment, HTTP/3 support is indicated by selecting the ALPN
-token "h3" in the TLS handshake.  Support for other application-layer protocols
-MAY be offered in the same handshake.
+按照{{QUIC-TRANSPORT}}中的说明建立QUIC连接。在连接建立期间，通过在TLS握手中选择
+ALPN令牌“h3”来指示HTTP/3支持。可以在相同的握手中提供对其他应用层协议的支持。
 
-While connection-level options pertaining to the core QUIC protocol are set in
-the initial crypto handshake, HTTP/3-specific settings are conveyed in the
-SETTINGS frame. After the QUIC connection is established, a SETTINGS frame
-({{frame-settings}}) MUST be sent by each endpoint as the initial frame of their
-respective HTTP control stream (see {{control-streams}}).
+虽然与核心QUIC协议有关的连接级选项在初始加密握手中设置，但特定于HTTP/3的设置在
+SETTINGS帧中传递。建立QUIC连接后，每个端**必须**发送SETTINGS帧({{frame-settings}})
+作为其各自HTTP控制流的初始帧(请参阅{{control-streams}})。
 
-## Connection Reuse
+## 连接重用（Connection Reuse）
 
-Once a connection exists to a server endpoint, this connection MAY be reused for
-requests with multiple different URI authority components.  The client MAY send
-any requests for which the client considers the server authoritative.
+一旦存在到服务器端点的连接，就**可以**将此连接重用于具有多个不同URI授权组件的请求。
+客户端**可以**发送客户端认为服务器具有可信性的任何请求。
 
-An authoritative HTTP/3 endpoint is typically discovered because the client has
-received an Alt-Svc record from the request's origin which nominates the
-endpoint as a valid HTTP Alternative Service for that origin.  As required by
-{{RFC7838}}, clients MUST check that the nominated server can present a valid
-certificate for the origin before considering it authoritative. Clients MUST NOT
-assume that an HTTP/3 endpoint is authoritative for other origins without an
-explicit signal.
+通常会发现授权的HTTP/3端点，因为客户端已从请求源收到Alt-Svc记录，该记录将端点指定为
+该源的有效HTTP替代服务。根据{{RFC7838}}的要求，客户端**必须**先检查指定服务器是否
+可以提供来源的有效证书，然后才能认为其具有可信性。客户端**禁止**假设HTTP/3端点在
+没有显式信号的情况下对其他来源具有可信性。
 
-A server that does not wish clients to reuse connections for a particular origin
-can indicate that it is not authoritative for a request by sending a 421
-(Misdirected Request) status code in response to the request (see Section 9.1.2
-of {{!RFC7540}}).
+不希望客户端重新使用特定来源的连接的服务器可以通过发送421(误导请求)状态代码响应请求
+来指示其对请求不具有可信性(参见{{!RFC7540}}的第9.1.2节)。
 
-The considerations discussed in Section 9.1 of {{?RFC7540}} also apply to the
-management of HTTP/3 connections.
+{{?RFC7540}}的第9.1节中讨论的注意事项也适用于HTTP/3连接的管理。
 
 # Stream Mapping and Usage {#stream-mapping}
 
@@ -731,8 +691,7 @@ with its 0-RTT data.
 
 ### PUSH_PROMISE {#frame-push-promise}
 
-The PUSH_PROMISE frame (type=0x05) is used to carry a promised request header
-set from server to client on a request stream, as in HTTP/2.
+PUSH_PROMISE帧（类型= 0x05）用于在请求流上承载从服务器到客户端的约定请求头集，如在HTTP/2中。
 
 ~~~~~~~~~~  drawing
  0                   1                   2                   3
@@ -745,36 +704,31 @@ set from server to client on a request stream, as in HTTP/2.
 ~~~~~~~~~~
 {: #fig-push-promise title="PUSH_PROMISE frame payload"}
 
-The payload consists of:
+有效载荷包括:
 
 Push ID:
-: A variable-length integer that identifies the server push operation.  A Push
-  ID is used in push stream headers ({{server-push}}), CANCEL_PUSH frames
-  ({{frame-cancel-push}}), DUPLICATE_PUSH frames ({{frame-duplicate-push}}), and
-  PRIORITY frames ({{frame-priority}}).
+: 一个可变长度的整数，用于标识服务器推送操作。
+推送ID用于推送流标头({{server-push}})，
+CANCEL_PUSH帧({{frame-cancel-push}})，
+DUPLICATE_PUSH帧({{frame-duplicate-push}})和PRIORITY帧({{frame-priority}})。
 
 Header Block:
-: QPACK-compressed request header fields for the promised response.  See [QPACK]
-  for more details.
+: 承诺响应的QPACK压缩请求头字段。 有关详细信息，请参阅 [QPACK]。
 
-A server MUST NOT use a Push ID that is larger than the client has provided in a
-MAX_PUSH_ID frame ({{frame-max-push-id}}) and MUST NOT use the same Push ID in
-multiple PUSH_PROMISE frames.  A client MUST treat receipt of a PUSH_PROMISE
-that contains a larger Push ID than the client has advertised or a Push ID which
-has already been promised as a connection error of type HTTP_MALFORMED_FRAME.
+服务器**禁止**使用大于客户端在MAX_PUSH_ID帧中提供的推送ID（{{frame-max-push-id}}），
+并且**禁止**在多个PUSH_PROMISE帧中使用相同的推送ID。
+客户端**必须**处理包含比客户端公布的推送ID更大的推送ID的PUSH_PROMISE/
+或已经承诺为HTTP_MALFORMED_FRAME类型的连接错误的推送ID的接收。
 
-If a PUSH_PROMISE frame is received on either control stream, the recipient MUST
-respond with a connection error ({{errors}}) of type HTTP_WRONG_STREAM.
+如果在任一控制流上接收到PUSH_PROMISE帧，则接收方**必须**以HTTP_WRONG_STREAM类型的连接错误（{{errors}}）进行响应。
 
-See {{server-push}} for a description of the overall server push mechanism.
+有关整体服务器推送机制的说明，请参阅{{server-push}}。
 
 ### GOAWAY {#frame-goaway}
 
-The GOAWAY frame (type=0x7) is used to initiate graceful shutdown of a
-connection by a server.  GOAWAY allows a server to stop accepting new requests
-while still finishing processing of previously received requests.  This enables
-administrative actions, like server maintenance.  GOAWAY by itself does not
-close a connection.
+GOAWAY帧（类型= 0x7）用于启动服务器正常关闭连接的操作。
+GOAWAY允许服务器停止接受新请求，同时仍然完成先前收到的请求的处理。
+这可以实现管理操作，例如服务器维护。 GOAWAY本身并不会关闭连接。
 
 ~~~~~~~~~~  drawing
  0                   1                   2                   3
@@ -785,40 +739,32 @@ close a connection.
 ~~~~~~~~~~
 {: #fig-goaway title="GOAWAY frame payload"}
 
-The GOAWAY frame is always sent on the control stream. It carries a QUIC Stream
-ID for a client-initiated bidirectional stream encoded as a variable-length
-integer.  A client MUST treat receipt of a GOAWAY frame containing a Stream ID
-of any other type as a connection error of type HTTP_WRONG_STREAM.
+GOAWAY帧始终在控制流上发送。
+它携带用于客户端发起的双向流的QUIC流ID，该双向流被编码为可变长度整数。
+客户端**必须**将包含任何其他类型的流ID的GOAWAY帧的接收视为HTTP_WRONG_STREAM类型的连接错误。
 
-Clients do not need to send GOAWAY to initiate a graceful shutdown; they simply
-stop making new requests.  A server MUST treat receipt of a GOAWAY frame on any
-stream as a connection error ({{errors}}) of type HTTP_UNEXPECTED_FRAME.
+客户端无需发送GOAWAY即可启动正常关机; 他们只是停止提出新请求。
+服务器**必须**将任何流上的GOAWAY帧的接收视为HTTP_UNEXPECTED_FRAME类型的连接错误（{{errors}}）。
 
-The GOAWAY frame applies to the connection, not a specific stream.  A client
-MUST treat a GOAWAY frame on a stream other than the control stream as a
-connection error ({{errors}}) of type HTTP_UNEXPECTED_FRAME.
+GOAWAY帧适用于连接，而不是特定的流。
+客户端**必须**将除控制流之外的流上的GOAWAY帧视为HTTP_UNEXPECTED_FRAME类型的连接错误（{{errors}}）。
 
-See {{connection-shutdown}} for more information on the use of the GOAWAY frame.
+有关使用GOAWAY帧的更多信息，请参阅{{connection-shutdown}}。
 
 ### MAX_PUSH_ID {#frame-max-push-id}
 
-The MAX_PUSH_ID frame (type=0xD) is used by clients to control the number of
-server pushes that the server can initiate.  This sets the maximum value for a
-Push ID that the server can use in a PUSH_PROMISE frame.  Consequently, this
-also limits the number of push streams that the server can initiate in addition
-to the limit set by the QUIC MAX_STREAM_ID frame.
+客户端使用MAX_PUSH_ID帧（类型= 0xD）来控制服务器可以启动的服务器推送次数。
+这将设置服务器可在PUSH_PROMISE帧中使用的推送ID的最大值。
+因此，除了QUIC MAX_STREAM_ID帧设置的限制之外，这还限制了服务器可以启动的推送流的数量。
 
-The MAX_PUSH_ID frame is always sent on the control stream.  Receipt of a
-MAX_PUSH_ID frame on any other stream MUST be treated as a connection error of
-type HTTP_WRONG_STREAM.
+MAX_PUSH_ID帧始终在控制流上发送。
+在任何其他流上接收MAX_PUSH_ID帧**必须**被视为HTTP_WRONG_STREAM类型的连接错误。
 
-A server MUST NOT send a MAX_PUSH_ID frame.  A client MUST treat the receipt of
-a MAX_PUSH_ID frame as a connection error of type HTTP_UNEXPECTED_FRAME.
+服务器**禁止**发送MAX_PUSH_ID帧。
+客户端**必须**将MAX_PUSH_ID帧的接收视为HTTP_UNEXPECTED_FRAME类型的连接错误。
 
-The maximum Push ID is unset when a connection is created, meaning that a server
-cannot push until it receives a MAX_PUSH_ID frame.  A client that wishes to
-manage the number of promised server pushes can increase the maximum Push ID by
-sending MAX_PUSH_ID frames as the server fulfills or cancels server pushes.
+创建连接时，将取消设置最大推送ID，这意味着服务器在收到MAX_PUSH_ID帧之前无法推送。
+希望管理承诺的服务器推送次数的客户端可以通过在服务器满足或取消服务器推送时发送MAX_PUSH_ID帧来增加最大推送ID。
 
 ~~~~~~~~~~  drawing
  0                   1                   2                   3
@@ -829,23 +775,19 @@ sending MAX_PUSH_ID frames as the server fulfills or cancels server pushes.
 ~~~~~~~~~~
 {: #fig-max-push title="MAX_PUSH_ID frame payload"}
 
-The MAX_PUSH_ID frame carries a single variable-length integer that identifies
-the maximum value for a Push ID that the server can use (see
-{{frame-push-promise}}).  A MAX_PUSH_ID frame cannot reduce the maximum Push ID;
-receipt of a MAX_PUSH_ID that contains a smaller value than previously received
-MUST be treated as a connection error of type HTTP_MALFORMED_FRAME.
+MAX_PUSH_ID帧携带单个可变长度整数，该整数标识服务器可以使用的推送ID的最大值（请参阅{{frame-push-promise}}）。
+MAX_PUSH_ID帧不能减少最大推送ID;
+接收包含比先前接收的值小的MAX_PUSH_ID**必须**被视为HTTP_MALFORMED_FRAME类型的连接错误。
 
 ### DUPLICATE_PUSH {#frame-duplicate-push}
 
-The DUPLICATE_PUSH frame (type=0xE) is used by servers to indicate that an
-existing pushed resource is related to multiple client requests.
+服务器使用DUPLICATE_PUSH帧（类型= 0xE）来指示现有推送资源与多个客户端请求相关。
 
-The DUPLICATE_PUSH frame is always sent on a request stream.  Receipt of a
-DUPLICATE_PUSH frame on any other stream MUST be treated as a connection error
-of type HTTP_WRONG_STREAM.
+DUPLICATE_PUSH帧始终在请求流上发送。
+在任何其他流上接收DUPLICATE_PUSH帧**必须**被视为HTTP_WRONG_STREAM类型的连接错误。
 
-A client MUST NOT send a DUPLICATE_PUSH frame.  A server MUST treat the receipt
-of a DUPLICATE_PUSH frame as a connection error of type HTTP_MALFORMED_FRAME.
+客户端**禁止**发送DUPLICATE_PUSH帧。
+服务器**必须**将DUPLICATE_PUSH帧的接收视为HTTP_MALFORMED_FRAME类型的连接错误。
 
 ~~~~~~~~~~  drawing
  0                   1                   2                   3
@@ -856,21 +798,15 @@ of a DUPLICATE_PUSH frame as a connection error of type HTTP_MALFORMED_FRAME.
 ~~~~~~~~~~
 {: #fig-duplicate-push title="DUPLICATE_PUSH frame payload"}
 
-The DUPLICATE_PUSH frame carries a single variable-length integer that
-identifies the Push ID of a resource that the server has previously promised
-(see {{frame-push-promise}}).
+DUPLICATE_PUSH帧携带单个可变长度整数，该整数标识服务器先前承诺的资源的推送ID（请参阅{{frame-push-promise}}）。
 
-This frame allows the server to use the same server push in response to multiple
-concurrent requests.  Referencing the same server push ensures that a promise
-can be made in relation to every response in which server push might be needed
-without duplicating request headers or pushed responses.
+此框架允许服务器使用相同的服务器推送来响应多个并发请求。
+引用相同的服务器推送可确保可以对可能需要服务器推送的每个响应做出承诺，而不会复制请求标头或推送响应。
 
-Allowing duplicate references to the same Push ID is primarily to reduce
-duplication caused by concurrent requests.  A server SHOULD avoid reusing a Push
-ID over a long period.  Clients are likely to consume server push responses and
-not retain them for reuse over time.  Clients that see a DUPLICATE_PUSH that
-uses a Push ID that they have since consumed and discarded are forced to ignore
-the DUPLICATE_PUSH.
+允许对同一推送ID的重复引用主要是为了减少并发请求导致的重复。
+服务器**应该**避免长时间重用推送ID。
+客户端可能会消耗服务器推送响应，并且不会保留它们以便重复使用。
+看到DUPLICATE_PUSH使用其已经消耗和丢弃的推送ID的客户端会强制忽略DUPLICATE_PUSH。
 
 
 ### 保留帧类型(Reserved Frame Types) {#frame-grease}
@@ -904,12 +840,12 @@ the DUPLICATE_PUSH.
 
 在{{!RFC7230}}章节4.1中定义的"大块"的传输编码**禁止**使用。
 
-紧接着载荷消息体之后的预告头字段通过一个附加的 HEADERS 帧携带。
-发送者在一个预告部分中**必须**仅发送一个 HEADERS 帧。
+紧接着载荷消息体之后的包尾头字段通过一个附加的 HEADERS 帧携带。
+发送者在一个包尾部分中**必须**仅发送一个 HEADERS 帧。
 接收者**必须**丢弃任何随后的 HEADERS 帧。
 
 回复当且仅当一个或更多的信息性回复(1xx, 详见{{!RFC7231}}, 章节 6.2)先于同一个请求的最终回复时**可能**包含多条消息。
-非最终回复不包含载荷消息体或者预告。
+非最终回复不包含载荷消息体或者包尾部分。
 
 一个 HTTP 请求/回复交换完全的利用了一个双向 QUIC 流。
 在发送一个请求之后，客户端**必须**关闭发送用的流。
@@ -1029,6 +965,12 @@ HTTP/3 使用的优先级规则与{{!RFC7540}}章节5.3 中描述的方案类似
 
 首次创建优先级元素时，它的默认初始权重为16，并且具有默认依赖项。
 请求和占位符依赖于优先级树的根；推送依赖于发送 PUSH_PROMISE 帧的客户端请求。
+保留N的整数值格式为“0x1f * N + 0x21”的帧类型，以满足忽略未知类型的要求（{{extensions}}）。
+这些帧没有语义，并且可以在需要应用层填充时发送。
+它们也**可能**在当前没有数据传输的连接上发送。
+端点**禁止**认为这些帧在收到时具有任何意义。
+
+可以任何方式实现选择的帧的有效载荷和长度。
 
 请求可以通过在流的开头包含 PRIORTIY 帧(详见{{frame-priority}})来覆盖默认初始值。
 可以通过在控制流上发送 PRIORITY 帧来更新这些优先级。
@@ -1050,23 +992,16 @@ HTTP/3 使用的优先级规则与{{!RFC7540}}章节5.3 中描述的方案类似
 和流一样，占位符也有与其关联的优先级。
 
 
-### Priority Tree Maintenance
+### 优先树维护(Priority Tree Maintenance)
 
-Because placeholders will be used to "root" any persistent structure of the tree
-which the client cares about retaining, servers can aggressively prune inactive
-regions from the priority tree. For prioritization purposes, a node in the tree
-is considered "inactive" when the corresponding stream has been closed for at
-least two round-trip times (using any reasonable estimate available on the
-server).  This delay helps mitigate race conditions where the server has pruned
-a node the client believed was still active and used as a Stream Dependency.
+因为根客户端在关注并保留的树的任何持久性结构中使用占位符，所以服务器可以从优先级树中积极地修剪非活动区域。
+为了确定优先级，当相应的流已经关闭至少两个往返间隔（使用服务器上可用的任何合理估计时间）时，树中的节点被认为是“非活动的”。
+此延迟有助于缓解服务器已修剪的客户端中仍处于活动状态并用作流依赖性的节点之间的竞争。
 
-Specifically, the server MAY at any time:
+具体来说，服务器**可能**随时：
 
-- Identify and discard branches of the tree containing only inactive nodes
-  (i.e. a node with only other inactive nodes as descendants, along with those
-  descendants)
-- Identify and condense interior regions of the tree containing only inactive
-  nodes, allocating weight appropriately
+- 识别并丢弃仅包含非活动节点的树的分支（即只有非活动节点作为叶子的节点，以及这些叶子节点本身）
+- 识别并压缩仅包含非活动节点的树的内部区域，适当地分配权重
 
 ~~~~~~~~~~  drawing
     x                x                 x
@@ -1081,88 +1016,64 @@ Specifically, the server MAY at any time:
 ~~~~~~~~~~
 {: #fig-pruning title="Example of Priority Tree Pruning"}
 
-In the example in {{fig-pruning}}, `P` represents a Placeholder, `A` represents
-an active node, and `I` represents an inactive node.  In the first step, the
-server discards two inactive branches (each a single node).  In the second step,
-the server condenses an interior inactive node.  Note that these transformations
-will result in no change in the resources allocated to a particular active
-stream.
+在{{fig-pruning}}的示例中，“P”表示占位符，“A”表示活动节点，“I”表示非活动节点。
+在第一步中，服务器丢弃两个非活动分支（每个分支都是一个节点I）。
+在第二步中，服务器压缩内部非活动节点。
+请注意，这些转换不会导致分配给特定活动流的资源发生变化。
 
-Clients SHOULD assume the server is actively performing such pruning and SHOULD
-NOT declare a dependency on a stream it knows to have been closed.
+客户端**应该**假设服务器正在主动执行这样的修剪，并且**不应该**声明它已知道已关闭的流的依赖性。
 
-## Server Push
+## 服务器推送(Server Push)
 
-HTTP/3 server push is similar to what is described in HTTP/2 {{!RFC7540}}, but
-uses different mechanisms.
+HTTP / 3服务器推送类似于HTTP / 2 {{!RFC7540}}中描述的，但使用不同的机制。
 
-Each server push is identified by a unique Push ID. This Push ID is used in a
-single PUSH_PROMISE frame (see {{frame-push-promise}}) which carries the request
-headers, possibly included in one or more DUPLICATE_PUSH frames (see
-{{frame-duplicate-push}}), then included with the push stream which ultimately
-fulfills those promises.
+每个服务器推送都由唯一的推送ID标识。
+此推送ID用于单个PUSH_PROMISE帧（参阅{{frame-push-promise}}），
+其中包含可能包含在一个或多个DUPLICATE_PUSH帧中的请求标头
+（参阅{{frame-duplicate-push}}），然后包含在推送流中，最终实现这些约定。
 
-Server push is only enabled on a connection when a client sends a MAX_PUSH_ID
-frame (see {{frame-max-push-id}}). A server cannot use server push until it
-receives a MAX_PUSH_ID frame. A client sends additional MAX_PUSH_ID frames to
-control the number of pushes that a server can promise. A server SHOULD use Push
-IDs sequentially, starting at 0. A client MUST treat receipt of a push stream
-with a Push ID that is greater than the maximum Push ID as a connection error of
-type HTTP_LIMIT_EXCEEDED.
+仅当客户端发送MAX_PUSH_ID帧时才会在连接上启用服务器推送（请参阅{{frame-max-push-id}}）。
+服务器在收到MAX_PUSH_ID帧之前无法使用服务器推送。
+客户端发送额外的MAX_PUSH_ID帧以控制服务器可以承诺的推送次数。
+服务器**应该**按顺序使用推送ID，从0开始。
+客户端**必须**将推送ID值大于最大推送ID的推送流的接收视为HTTP_LIMIT_EXCEEDED类型的连接错误。
 
-The header of the request message is carried by a PUSH_PROMISE frame (see
-{{frame-push-promise}}) on the request stream which generated the push. This
-allows the server push to be associated with a client request. Ordering of a
-PUSH_PROMISE in relation to certain parts of the response is important (see
-Section 8.2.1 of {{!RFC7540}}).  Promised requests MUST conform to the
-requirements in Section 8.2 of {{!RFC7540}}.
+请求消息的头部由生成推送的请求流上的PUSH_PROMISE帧（参见{{frame-push-promise}}）承载。
+这允许服务器推送与客户端请求相关联。
+与响应的某些部分相关的PUSH_PROMISE的排序很重要（参见{{!RFC7540}}的8.2.1）。
+承诺的请求**必须**符合{{!RFC7540}}第8.2节中的要求。
 
-The same server push can be associated with additional client requests using a
-DUPLICATE_PUSH frame (see {{frame-duplicate-push}}).  Ordering of a
-DUPLICATE_PUSH in relation to certain parts of the response is similarly
-important.  Due to reordering, DUPLICATE_PUSH frames can arrive before the
-corresponding PUSH_PROMISE frame, in which case the request headers of the push
-would not be immediately available.  Clients which receive a DUPLICATE_PUSH
-frame for an as-yet-unknown Push ID can either delay generating new requests for
-content referenced following the DUPLICATE_PUSH frame until the request headers
-become available, or can initiate requests for discovered resources and cancel
-the requests if the requested resource is already being pushed.
+可以使用DUPLICATE_PUSH帧将相同的服务器推送与其他客户端请求相关联（参阅{{frame-duplicate-push}}）。
+与响应的某些部分相关的DUPLICATE_PUSH的排序同样重要。
+由于重新排序，DUPLICATE_PUSH帧可以在相应的PUSH_PROMISE帧之前到达，在这种情况下，推送的请求头不会立即可用。
+接收到尚未知的推送ID的DUPLICATE_PUSH帧的客户端可以延迟生
+成对DUPLICATE_PUSH帧之后引用的内容的新请求，直到请求头可用，或者可以发
+起对已发现资源的请求并在请求的资源已经被推送时取消请求。
 
-When a server later fulfills a promise, the server push response is conveyed on
-a push stream (see {{push-streams}}). The push stream identifies the Push ID of
-the promise that it fulfills, then contains a response to the promised request
-using the same format described for responses in {{request-response}}.
+当服务器稍后履行约定时，服务器推送响应将在推送流上传送（参阅{{push-streams}}）。
+推送流标识其履行的约定的推送ID，然后使用与{{request-response}}中的响应描述的相同格式包含对约定请求的响应。
 
-If a promised server push is not needed by the client, the client SHOULD send a
-CANCEL_PUSH frame. If the push stream is already open or opens after sending the
-CANCEL_PUSH frame, a QUIC STOP_SENDING frame with an appropriate error code can
-also be used (e.g., HTTP_PUSH_REFUSED, HTTP_PUSH_ALREADY_IN_CACHE; see
-{{errors}}). This asks the server not to transfer additional data and indicates
-that it will be discarded upon receipt.
+如果客户端不需要承诺的服务器推送，客户端**应该**发送一个CANCEL_PUSH帧。
+如果推送流已经打开或在发送CANCEL_PUSH帧之后打开，则还可以使用
+具有适当错误代码的QUIC STOP_SENDING帧
+（例如，HTTP_PUSH_REFUSED，HTTP_PUSH_ALREADY_IN_CACHE;参见{{errors}}）。
+这要求服务器不要传输其他数据并指示它将在收到时被丢弃。
 
-# Connection Closure
+# 连接结束(Connection Closure)
 
-Once established, an HTTP/3 connection can be used for many requests and
-responses over time until the connection is closed.  Connection closure can
-happen in any of several different ways.
+一旦建立，HTTP / 3连接可以用于许多请求和响应，直到连接关闭。
+连接结束可以以几种不同的方式发生。
 
-## Idle Connections
+## 闲置连接(Idle Connections)
 
-Each QUIC endpoint declares an idle timeout during the handshake.  If the
-connection remains idle (no packets received) for longer than this duration, the
-peer will assume that the connection has been closed.  HTTP/3 implementations
-will need to open a new connection for new requests if the existing connection
-has been idle for longer than the server's advertised idle timeout, and SHOULD
-do so if approaching the idle timeout.
+每个QUIC端点在握手期间声明空闲超时。
+如果连接保持空闲（没有收到数据包）超过此持续时间，则对等体将认为连接已关闭。
+如果现有连接的空闲时间超过服务器的通告空闲超时时间，HTTP / 3实现将需要为新请求打开新连接，并且如果接近空闲超时**应该**这样做。
 
-HTTP clients are expected to request that the transport keep connections open
-while there are responses outstanding for requests or server pushes, as
-described in Section 19.2 of {{QUIC-TRANSPORT}}. If the client is not expecting
-a response from the server, allowing an idle connection to time out is preferred
-over expending effort maintaining a connection that might not be needed.  A
-gateway MAY maintain connections in anticipation of need rather than incur the
-latency cost of connection establishment to servers. Servers SHOULD NOT actively
-keep connections open.
+如{{QUIC-TRANSPORT}}的第19.2节所述，HTTP客户端应该请求传输保持连接打开，同时对请求或服务器推送有未完成的响应。
+如果客户端不期望来自服务器的响应，则允许空闲连接超时是优先选择上的，而不是花费维持可能不需要的连接的资源。
+网关**可能**在预期需要时保持连接，因而不会产生到服务器的连接建立的延迟成本。
+服务器**不应该**主动保持连接打开。
 
 ## 连接关闭（Connection Shutdown）
 
@@ -1391,11 +1302,9 @@ HTTP/2的安全注意事项类似。
   Specification:
   : This document
 
-## Registration of QUIC Version Hint Alt-Svc Parameter
+## 注册QUIC版本的提示Alt-Svc参数(Registration of QUIC Version Hint Alt-Svc Parameter)
 
-This document creates a new registration for version-negotiation hints in the
-"Hypertext Transfer Protocol (HTTP) Alt-Svc Parameter" registry established in
-{{!RFC7838}}.
+本文档为{{!RFC7838}}中注册的超文本协议(HTTP)的Alt-Svc参数创建了一个版本协商提示的新注册。
 
   Parameter:
   : "quic"
@@ -1403,36 +1312,28 @@ This document creates a new registration for version-negotiation hints in the
   Specification:
   : This document, {{alt-svc-version-hint}}
 
-## Frame Types {#iana-frames}
+## 帧类型(Frame Types) {#iana-frames}
 
-This document establishes a registry for HTTP/3 frame type codes. The "HTTP/3
-Frame Type" registry governs a 62-bit space. This space is split into three
-spaces that are governed by different policies. Values between `0x00` and `0x3f`
-(in hexadecimal) are assigned via the Standards Action or IESG Review policies
-{{!RFC8126}}. Values from `0x40` to `0x3fff` operate on the Specification
-Required policy {{!RFC8126}}. All other values are assigned to Private Use
-{{!RFC8126}}.
+本文档为HTTP/3帧类型代码建立了一个注册。 "HTTP / 3帧"类型的注册管理62-bit空间。
+此空间分为三个空间，由不同的策略管理。
+“0x00”和“0x3f”（十六进制）之间的值通过Standards Action或IESG Review策略分配 {{!RFC8126}}。
+从“0x40”到“0x3fff”的值在特定“规范要求”策略上运行{{!RFC8126}}。所有其他值都分配给私有{{!RFC8126}}。
 
-While this registry is separate from the "HTTP/2 Frame Type" registry defined in
-{{RFC7540}}, it is preferable that the assignments parallel each other where the
-code spaces overlap.  If an entry is present in only one registry, every effort
-SHOULD be made to avoid assigning the corresponding value to an unrelated
-operation.
+虽然此注册表与{{RFC7540}}中定义的“HTTP/2帧”类型的注册是分开的
+, 当代码空间重叠时最好也分开看待两者。如果一个条目只存在于一个注册中，则**应该**尽一切努力避免将相应的值分配给不相关的操作。
 
-New entries in this registry require the following information:
+此注册中的新条目需要以下信息:
 
-Frame Type:
-: A name or label for the frame type.
+帧类型(Frame Type):
+: 该类型的名称或标签
 
-Code:
-: The 62-bit code assigned to the frame type.
+代码(Code):
+: 分配给该类型帧的62-bit代码
 
-Specification:
-: A reference to a specification that includes a description of the frame layout
-  and its semantics, including any parts of the frame that are conditionally
-  present.
+格式(Specification):
+: 对规范的引用，包括对帧布局及其语义的描述，包括有条件存在的帧的任何部分。
 
-The entries in the following table are registered by this document.
+下表中的条目由本文档注册。
 
 | ---------------- | ------ | -------------------------- |
 | Frame Type       |  Code  | Specification              |
@@ -1451,39 +1352,31 @@ The entries in the following table are registered by this document.
 | DUPLICATE_PUSH   |  0xE   | {{frame-duplicate-push}}   |
 | ---------------- | ------ | -------------------------- |
 
-Additionally, each code of the format `0x1f * N + 0x21` for integer values of N
-(that is, `0x21`, `0x40`, ..., through `0x‭3FFFFFFFFFFFFFFE‬`) MUST NOT be
-assigned by IANA.
+此外，IANA的整数值（即从“0x21”，“0x40”，......，
+到“0x3FFFFFFFFFFFFFFE”）中满足规则为“0x1f * N + 0x21”的每个代码都**禁止**由IANA分配。
 
-## Settings Parameters {#iana-settings}
+## 设置参数(Settings Parameters) {#iana-settings}
 
-This document establishes a registry for HTTP/3 settings.  The "HTTP/3 Settings"
-registry governs a 62-bit space. This space is split into three spaces that are
-governed by different policies. Values between `0x00` and `0x3f` (in
-hexadecimal) are assigned via the Standards Action or IESG Review policies
-{{!RFC8126}}. Values from `0x40` to `0x3fff` operate on the Specification
-Required policy {{!RFC8126}}. All other values are assigned to Private Use
-{{!RFC8126}}.  The designated experts are the same as those for the "HTTP/2
-Settings" registry defined in {{RFC7540}}.
+本文档为HTTP/3设置建立了一个注册。“HTTP / 3设置”注册可管理62-bit空间。
+此空间分为三个空间，由不同的策略管理。
+“0x00”和“0x3f”（十六进制）之间的值通过Standards Action或IESG Review策略分配{{!RFC8126}}.
+其他所有值注册为私有{{!RFC8126}}。该项指定的专家与{{RFC7540}}中定义的“HTTP/2设置”注册的专家相同。
 
-While this registry is separate from the "HTTP/2 Settings" registry defined in
-{{RFC7540}}, it is preferable that the assignments parallel each other.  If an
-entry is present in only one registry, every effort SHOULD be made to avoid
-assigning the corresponding value to an unrelated operation.
+虽然此注册与{{RFC7540}}中定义的“HTTP/2设置”注册是分开的，最好也将两者分开看待。
+如果一个条目只存在于一个注册表中，则**应该**尽一切努力避免将相应的值分配给不相关的操作。
 
-New registrations are advised to provide the following information:
+建议新注册提供以下信息:
 
-Name:
-: A symbolic name for the setting.  Specifying a setting name is optional.
+名称(Name):
+: 设置的符号名称。可选指定设置名称。
 
-Code:
-: The 62-bit code assigned to the setting.
+代码(Code):
+: 分配给该设置的62-bit代码
 
-Specification:
-: An optional reference to a specification that describes the use of the
-  setting.
+格式(Specification):
+: 对描述使用的规范的可选引用设置。
 
-The entries in the following table are registered by this document.
+下表中的条目由本文档注册.
 
 | ---------------------------- | ------ | ------------------------- |
 | Setting Name                 |  Code  | Specification             |
@@ -1496,63 +1389,63 @@ The entries in the following table are registered by this document.
 | NUM_PLACEHOLDERS             |  0x8   | {{settings-parameters}}   |
 | ---------------------------- | ------ | ------------------------- |
 
-Additionally, each code of the format `0x1f * N + 0x21` for integer values of N
-(that is, `0x21`, `0x40`, ..., through `0x‭3FFFFFFFFFFFFFFE‬`) MUST NOT be
-assigned by IANA.
+此外，IANA的整数值（即从“0x21”，“0x40”，......，到“0x3FFFFFFFFFFFFFFE”）
+中满足规则为“0x1f * N + 0x21”的每个代码都**禁止**由IANA分配。
 
-## Error Codes {#iana-error-codes}
+## 错误码 {#iana-error-codes}
 
-This document establishes a registry for HTTP/3 error codes. The "HTTP/3 Error
-Code" registry manages a 16-bit space.  The "HTTP/3 Error Code" registry
-operates under the "Expert Review" policy {{?RFC8126}}.
+该文档确定了HTTP/3 错误码的列表. "HTTP/3 Error
+Code" 登记表确定了16-bit的空间如何使用.  "HTTP/3 Error Code" 登记表
+在“专家评审“的方式下运作，见 {{?RFC8126}}.
 
-Registrations for error codes are required to include a description
-of the error code.  An expert reviewer is advised to examine new
-registrations for possible duplication with existing error codes.
-Use of existing registrations is to be encouraged, but not mandated.
+错误码的登记时要求包含该错误码的描述。
+专家评审者需要对新的错误码进行检查，
+防止与现有的错误码重复。鼓励使用现有登
+记的错误码，但不强制。
 
-New registrations are advised to provide the following information:
+新登记的错误码建议包括下面的信息：
 
-Name:
-: A name for the error code.  Specifying an error code name is optional.
+名称:
+: 错误码的名称。指定错误码的名称
+是可选的。
 
-Code:
-: The 16-bit error code value.
+代号（code）:
+: 16-bit 错误码值（value）.
 
-Description:
-: A brief description of the error code semantics, longer if no detailed
-  specification is provided.
+描述:
+: 对错误码含义的简短描述，如果没有
+详细的规范可以适当增加内容。
 
-Specification:
-: An optional reference for a specification that defines the error code.
+规范:
+: 定义错误码规范的相关引用链接（可选）。
 
-The entries in the following table are registered by this document.
+下表里包括了该文档登记的错误码。
 
 | ----------------------------------- | ---------- | ---------------------------------------- | ---------------------- |
-| Name                                | Code       | Description                              | Specification          |
+| 名称                                 | 代号       | 描述                                      | 规范          |
 | ----------------------------------- | ---------- | ---------------------------------------- | ---------------------- |
-| HTTP_NO_ERROR                       | 0x0000     | No error                                 | {{http-error-codes}}   |
-| HTTP_WRONG_SETTING_DIRECTION        | 0x0001     | Setting sent in wrong direction          | {{http-error-codes}}   |
-| HTTP_PUSH_REFUSED                   | 0x0002     | Client refused pushed content            | {{http-error-codes}}   |
-| HTTP_INTERNAL_ERROR                 | 0x0003     | Internal error                           | {{http-error-codes}}   |
-| HTTP_PUSH_ALREADY_IN_CACHE          | 0x0004     | Pushed content already cached            | {{http-error-codes}}   |
-| HTTP_REQUEST_CANCELLED              | 0x0005     | Data no longer needed                    | {{http-error-codes}}   |
-| HTTP_INCOMPLETE_REQUEST             | 0x0006     | Stream terminated early                  | {{http-error-codes}}   |
-| HTTP_CONNECT_ERROR                  | 0x0007     | TCP reset or error on CONNECT request    | {{http-error-codes}}   |
-| HTTP_EXCESSIVE_LOAD                 | 0x0008     | Peer generating excessive load           | {{http-error-codes}}   |
-| HTTP_VERSION_FALLBACK               | 0x0009     | Retry over HTTP/1.1                      | {{http-error-codes}}   |
-| HTTP_WRONG_STREAM                   | 0x000A     | A frame was sent on the wrong stream     | {{http-error-codes}}   |
-| HTTP_LIMIT_EXCEEDED                 | 0x000B     | An identifier limit was exceeded         | {{http-error-codes}}   |
-| HTTP_DUPLICATE_PUSH                 | 0x000C     | Push ID was fulfilled multiple times     | {{http-error-codes}}   |
-| HTTP_UNKNOWN_STREAM_TYPE            | 0x000D     | Unknown unidirectional stream type       | {{http-error-codes}}   |
-| HTTP_WRONG_STREAM_COUNT             | 0x000E     | Too many unidirectional streams          | {{http-error-codes}}   |
-| HTTP_CLOSED_CRITICAL_STREAM         | 0x000F     | Critical stream was closed               | {{http-error-codes}}   |
-| HTTP_WRONG_STREAM_DIRECTION         | 0x0010     | Unidirectional stream in wrong direction | {{http-error-codes}}   |
-| HTTP_EARLY_RESPONSE                 | 0x0011     | Remainder of request not needed          | {{http-error-codes}}   |
-| HTTP_MISSING_SETTINGS               | 0x0012     | No SETTINGS frame received               | {{http-error-codes}}   |
-| HTTP_UNEXPECTED_FRAME               | 0x0013     | Frame not permitted in the current state | {{http-error-codes}}   |
-| HTTP_REQUEST_REJECTED               | 0x0014     | Request not processed                    | {{http-error-codes}}   |
-| HTTP_MALFORMED_FRAME                | 0x01XX     | Error in frame formatting                | {{http-error-codes}}   |
+| HTTP_NO_ERROR                       | 0x0000     | 无错误                                    | {{http-error-codes}}   |
+| HTTP_WRONG_SETTING_DIRECTION        | 0x0001     | 配置信息发错方向。                          | {{http-error-codes}}   |
+| HTTP_PUSH_REFUSED                   | 0x0002     | 客户端拒绝推送内容                          | {{http-error-codes}}   |
+| HTTP_INTERNAL_ERROR                 | 0x0003     | 内部错误                                  | {{http-error-codes}}   |
+| HTTP_PUSH_ALREADY_IN_CACHE          | 0x0004     | 推送内容已被缓存                            | {{http-error-codes}}   |
+| HTTP_REQUEST_CANCELLED              | 0x0005     | 数据不再被需要                              | {{http-error-codes}}   |
+| HTTP_INCOMPLETE_REQUEST             | 0x0006     | 流（Stream）早已被终止                      | {{http-error-codes}}   |
+| HTTP_CONNECT_ERROR                  | 0x0007     | TCP被重置 或 CONNECT 请求错误               | {{http-error-codes}}   |
+| HTTP_EXCESSIVE_LOAD                 | 0x0008     | 对端生成过长内容                            | {{http-error-codes}}   |
+| HTTP_VERSION_FALLBACK               | 0x0009     | 基于HTTP/1.1 重试                         | {{http-error-codes}}   |
+| HTTP_WRONG_STREAM                   | 0x000A     | 在错误的流（Stream）内发送帧                 | {{http-error-codes}}   |
+| HTTP_LIMIT_EXCEEDED                 | 0x000B     | 超出标识符限制                             | {{http-error-codes}}   |
+| HTTP_DUPLICATE_PUSH                 | 0x000C     | Push ID 被使用多次                         | {{http-error-codes}}   |
+| HTTP_UNKNOWN_STREAM_TYPE            | 0x000D     | 未知的单向stream类型                       | {{http-error-codes}}   |
+| HTTP_WRONG_STREAM_COUNT             | 0x000E     | 单向stream数量过多                         | {{http-error-codes}}   |
+| HTTP_CLOSED_CRITICAL_STREAM         | 0x000F     | 关键stream 被关闭                          | {{http-error-codes}}   |
+| HTTP_WRONG_STREAM_DIRECTION         | 0x0010     | 单向流（stream）在错误的方向                 | {{http-error-codes}}   |
+| HTTP_EARLY_RESPONSE                 | 0x0011     | 剩余的请求不在被需要                         | {{http-error-codes}}   |
+| HTTP_MISSING_SETTINGS               | 0x0012     | 没有接受到配置（SETTINGS）帧                 | {{http-error-codes}}   |
+| HTTP_UNEXPECTED_FRAME               | 0x0013     | 当前状态不允许帧                            | {{http-error-codes}}   |
+| HTTP_REQUEST_REJECTED               | 0x0014     | 请求没有被处理                              | {{http-error-codes}}   |
+| HTTP_MALFORMED_FRAME                | 0x01XX     | 帧格式化错误                               | {{http-error-codes}}   |
 | ----------------------------------- | ---------- | ---------------------------------------- | ---------------------- |
 
 ## 流类型(Stream Types) {#iana-stream-types}
